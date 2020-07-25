@@ -275,6 +275,7 @@ int main()
 
 		if (time(NULL) - last_baseline_time > 24 * 3600) {
 			save_baseline();
+			last_baseline_time = time(NULL);
 		}
 	}
 
