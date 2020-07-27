@@ -1,3 +1,32 @@
+Setup instructions:
+* Download a RPi image
+* Burn the image on an SD card
+* Mount it and edit boot/config.txt to include:
+  * enable_uart=1
+  * dtparam=i2c_arm=on,i2c_arm_baudrate=40000
+* Create an empty file called boot/ssh
+* Mount the second partition and edit /etc/wpa_supplicant/wpa_supplicant.conf to include the wifi password
+* Insert the SD card to the PI and boot
+* SSH to it and install:
+  * sudo apt update
+  * sudo apt upgrade
+  * sudo apt install vim
+  * sudo apt install libssl-dev
+  * sudo apt install python-pip
+  * sudo apt install i2c-tools
+  * sudo apt install cmake
+  * sudo apt install git
+* follow the instructions on the AWS SDK github page (https://github.com/aws/aws-iot-device-sdk-cpp-v2)
+  * mkdir sdk-cpp-workspace
+  * cd sdk-cpp-workspace
+  * git clone --recursive https://github.com/aws/aws-iot-device-sdk-cpp-v2.git
+  * mkdir aws-iot-device-sdk-cpp-v2-build
+  * cd aws-iot-device-sdk-cpp-v2-build
+  * cmake -DCMAKE_INSTALL_PREFIX=/home/pi/sdk-cpp-workspace/  -DBUILD_DEPS=ON -DBUILD_SHARED_LIBS=ON ../aws-iot-device-sdk-cpp-v2
+  * cmake --build . --target install
+* cd back to /home/pi/sdk-cpp-workspace/ and clone the sensor-specific code
+  * git clone https://github.com/jonronen/fartometer.git
+
 Build the AWS part:
 g++ -I ../include/ -L ../lib/ -laws-crt-cpp -laws-c-mqtt -laws-c-auth -laws-c-io -laws-c-http -laws-c-compression -laws-c-common -laws-c-cal -ls2n -Wall -Wno-long-long -pedantic -Werror main.cpp
 
