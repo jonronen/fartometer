@@ -1,3 +1,4 @@
+#include "ccs811_sense.h"
 #include <linux/i2c-dev.h>
 #include <sys/ioctl.h>
 #include <stdio.h>
@@ -223,60 +224,83 @@ static void save_baseline()
 	close(baseline_file_desc);
 }
 
-int main()
+void ccs811_init()
 {
 	open_device("/dev/i2c-1", 0x5a);
 	last_baseline_time = time(NULL);
+}
+
+int get_env_sample(env_values_t &env_values)
+{
+	unsigned char status, mode, dev_err_num;
+	int err = read_byte(0, &status);
+
+	if (err || !is_app_loaded(status)) {
+		device_reset();
+		restore_baseline();
+		return -EAGAIN;
+	}
+
+	err = read_byte(1, &mode);
+	if (err || !correct_mode(mode)) {
+		set_mode();
+		return -EAGAIN;
+	}
+
+	if (status_has_err(status)) {
+		err = read_byte(0xe0, &dev_err_num);
+		if (!err)
+			printf("Device error number: 0x%02x\n", dev_err_num);
+		return -EAGAIN;
+	}
+
+	if (!status_has_data(status)) {
+		sleep(1);
+		return -EAGAIN;
+	}
+
+	if (time(NULL) - last_baseline_time > 24 * 3600) {
+		save_baseline();
+		last_baseline_time = time(NULL);
+	}
+
+	unsigned char buf[8];
+	err = read_buff(0x02, buf, sizeof(buf));
+	if (!err) {
+		unsigned int co2_value = (unsigned int)buf[0] * 0x100 + buf[1];
+		unsigned int tvoc_value = (unsigned int)buf[2] * 0x100 + buf[3];
+		unsigned int raw_value = (unsigned int)buf[6] * 0x100 + buf[7];
+		status = buf[4];
+		err = buf[5];
+		if (status_has_err(status) || err)
+			return -EAGAIN;
+		printf("eCO2=%u "
+			"eTVOC=%u "
+			"status=0x%02x "
+			"ERR=0x%02x "
+			"RAW=%u,%u\n",
+			co2_value,
+			tvoc_value,
+			status, err,
+			(raw_value & 0xfc00) >> 10, raw_value & 0x3ff);
+		env_values.co2 = co2_value;
+		env_values.tvoc = tvoc_value;
+
+		return 0;
+	}
+
+	return -EAGAIN;
+}
+
+
+int main()
+{
+	ccs811_init();
 
 	while (1) {
-		unsigned char status, mode, dev_err_num;
-		int err = read_byte(0, &status);
-
-		if (err || !is_app_loaded(status)) {
-			device_reset();
-			restore_baseline();
-			continue;
-		}
-
-		err = read_byte(1, &mode);
-		if (err || !correct_mode(mode)) {
-			set_mode();
-			continue;
-		}
-
-		if (status_has_err(status)) {
-			err = read_byte(0xe0, &dev_err_num);
-			if (!err)
-				printf("Device error number: 0x%02x\n", dev_err_num);
-			continue;
-		}
-
-		if (!status_has_data(status)) {
-			sleep(1);
-			continue;
-		}
-
-		unsigned char buf[8];
-		err = read_buff(0x02, buf, sizeof(buf));
-		if (!err) {
-			unsigned int raw_value = (unsigned int)buf[6] * 0x100 + buf[7];
-			printf("eCO2=%u "
-				"eTVOC=%u "
-				"status=0x%02x "
-				"ERR=0x%02x "
-				"RAW=%u,%u\n",
-				(unsigned int)buf[0] * 0x100 + buf[1],
-				(unsigned int)buf[2] * 0x100 + buf[3],
-				buf[4], buf[5],
-				(raw_value & 0xfc00) >> 10, raw_value & 0x3ff);
-		}
-
+		env_values_t env_values;
+		get_env_sample(env_values);
 		sleep(1);
-
-		if (time(NULL) - last_baseline_time > 24 * 3600) {
-			save_baseline();
-			last_baseline_time = time(NULL);
-		}
 	}
 
 	return 0;
