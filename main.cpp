@@ -77,7 +77,12 @@ static const char *get_location()
         printf("Invalid location from file\n");
         return default_location;
     }
-    location[ret] = '\0';
+    location[ret] = '\n';
+
+    while (ret > 0 && isspace(location[ret])) {
+        location[ret] = 0;
+        ret--;
+    }
 
     printf("Using location %s\n", location);
 
