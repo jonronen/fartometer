@@ -13,6 +13,16 @@
 #include <iostream>
 #include <mutex>
 
+#include <stdio.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <errno.h>
+#include <time.h>
+
+#include "ccs811_sense.h"
+
 using namespace Aws::Crt;
 
 static void s_printHelp()
@@ -20,7 +30,7 @@ static void s_printHelp()
     fprintf(stdout, "Usage:\n");
     fprintf(
         stdout,
-        "basic-pub-sub --endpoint <endpoint> --cert <path to cert>"
+        "fartometer --endpoint <endpoint> --cert <path to cert>"
         " --key <path to key> --ca_file <optional: path to custom ca>\n\n");
     fprintf(stdout, "endpoint: the endpoint of the mqtt server not including a port\n");
     fprintf(
@@ -35,12 +45,12 @@ static void s_printHelp()
     fprintf(stdout, "\tIt's the path to a CA file in PEM format\n");
 }
 
-bool s_cmdOptionExists(char **begin, char **end, const String &option)
+static bool s_cmdOptionExists(char **begin, char **end, const String &option)
 {
     return std::find(begin, end, option) != end;
 }
 
-char *s_getCmdOption(char **begin, char **end, const String &option)
+static char *s_getCmdOption(char **begin, char **end, const String &option)
 {
     char **itr = std::find(begin, end, option);
     if (itr != end && ++itr != end)
@@ -49,6 +59,31 @@ char *s_getCmdOption(char **begin, char **end, const String &option)
     }
     return 0;
 }
+
+static const char *get_location()
+{
+    static const unsigned int LOCATION_MAX_SIZE = 64;
+    static char location[LOCATION_MAX_SIZE+1];
+    static const char default_location[] = "Home";
+    int f = open("location.txt", O_RDONLY);
+
+    if (f < 0) {
+        printf("Error opening file: %d\n", errno);
+        return default_location;
+    }
+
+    int ret = read(f, location, LOCATION_MAX_SIZE);
+    if (ret <= 0 || (unsigned int)ret >= LOCATION_MAX_SIZE || ret <= 0) {
+        printf("Invalid location from file\n");
+        return default_location;
+    }
+    location[ret] = '\0';
+
+    printf("Using location %s\n", location);
+
+    return location;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -65,13 +100,14 @@ int main(int argc, char *argv[])
     String caFile;
     String topic = "sensor_report";
     String clientId(Aws::Crt::UUID().ToString());
+    const char *location = get_location();
 
     /*********************** Parse Arguments ***************************/
     if (!s_cmdOptionExists(argv, argv + argc, "--endpoint") ||
-	!s_cmdOptionExists(argv, argv + argc, "--key") ||
-	!s_cmdOptionExists(argv, argv + argc, "--cert") ||
-	!s_cmdOptionExists(argv, argv + argc, "--ca_file") ||
-	!s_cmdOptionExists(argv, argv + argc, "--client_id"))
+        !s_cmdOptionExists(argv, argv + argc, "--key") ||
+        !s_cmdOptionExists(argv, argv + argc, "--cert") ||
+        !s_cmdOptionExists(argv, argv + argc, "--ca_file") ||
+        !s_cmdOptionExists(argv, argv + argc, "--client_id"))
     {
         s_printHelp();
         return 0;
@@ -170,7 +206,7 @@ int main(int argc, char *argv[])
             }
             else
             {
-                fprintf(stdout, "Connection completed successfully.");
+                fprintf(stdout, "Connection completed successfully\n");
                 connectionCompletedPromise.set_value(true);
             }
         }
@@ -209,24 +245,45 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
+    /* initialize the sensor */
+    ccs811_init();
+
+    unsigned int sample_counter = 0;
+
     if (connectionCompletedPromise.get_future().get())
     {
         while (true)
         {
-            String input;
-            fprintf(
-                stdout,
-                "Enter the message you want to publish to topic %s and press enter. Enter 'exit' to exit this "
-                "program.\n",
-                topic.c_str());
-            std::getline(std::cin, input);
+            sleep(1);
 
-            if (input == "exit")
-            {
-                break;
-            }
+            env_values_t env_values;
+            if (get_env_sample(env_values) < 0)
+                continue;
 
-            ByteBuf payload = ByteBufNewCopy(DefaultAllocator(), (const uint8_t *)input.data(), input.length());
+            if (!env_values.valid)
+                continue;
+
+            sample_counter++;
+
+            /* allow at least 20 minutes of consistent operation, send report every 10 minutes */
+            if (sample_counter < 20 * 60)
+                continue;
+
+            if (sample_counter % (10 * 60))
+                continue;
+
+            char input[128];
+            snprintf(input,
+                     sizeof(input),
+                     "{\"location\": \"%s\", \"eco2\": %u, \"etvoc\": %u}",
+                     location,
+                     env_values.co2,
+                     env_values.tvoc);
+            input[sizeof(input)-1] = '\0';
+
+            printf("Sending %s on topic %s\n", input, topic.c_str());
+
+            ByteBuf payload = ByteBufNewCopy(DefaultAllocator(), (const uint8_t *)input, strlen(input));
             ByteBuf *payloadPtr = &payload;
 
             auto onPublishComplete = [payloadPtr](Mqtt::MqttConnection &, uint16_t packetId, int errorCode) {

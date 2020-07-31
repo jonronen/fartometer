@@ -3,8 +3,9 @@
 
 
 typedef struct _env_values {
-	unsigned int co2;
-	unsigned int tvoc;
+    unsigned int co2;
+    unsigned int tvoc;
+    bool valid;
 } env_values_t;
 
 

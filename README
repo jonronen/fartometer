@@ -27,12 +27,9 @@ Setup instructions:
 * cd back to /home/pi/sdk-cpp-workspace/ and clone the sensor-specific code
   * git clone https://github.com/jonronen/fartometer.git
 
-Build the AWS part:
-g++ -I ../include/ -L ../lib/ -laws-crt-cpp -laws-c-mqtt -laws-c-auth -laws-c-io -laws-c-http -laws-c-compression -laws-c-common -laws-c-cal -ls2n -Wall -Wno-long-long -pedantic -Werror main.cpp
+Build everything together:
+g++ -I ../include/ -L ../lib/ -laws-crt-cpp -laws-c-mqtt -laws-c-auth -laws-c-io -laws-c-http -laws-c-compression -laws-c-common -laws-c-cal -ls2n -Wall -Wno-long-long -pedantic -Werror main.cpp ccs811_sense.cpp
 
-Run the AWS part:
+Run:
 LD_LIBRARY_PATH=../lib/ ./a.out --endpoint "a5r16h71o6euo-ats.iot.us-west-2.amazonaws.com" --cert "/home/pi/AWS_Certs/8824c5cb33-certificate.pem.crt" --key "/home/pi/AWS_Certs/8824c5cb33-private.pem.key" --client_id "arn:aws:iot:us-west-2:580778568985:thing/HomeRasPi" --ca_file /home/pi/AWS_Certs/AmazonRootCA1.pem
-
-Build the sensor part:
-g++ -Wall -Wextra -O2 ccs811_sense.c -o c.out
 

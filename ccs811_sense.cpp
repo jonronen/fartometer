@@ -285,24 +285,11 @@ int get_env_sample(env_values_t &env_values)
 			(raw_value & 0xfc00) >> 10, raw_value & 0x3ff);
 		env_values.co2 = co2_value;
 		env_values.tvoc = tvoc_value;
+                env_values.valid = true;
 
 		return 0;
 	}
 
 	return -EAGAIN;
-}
-
-
-int main()
-{
-	ccs811_init();
-
-	while (1) {
-		env_values_t env_values;
-		get_env_sample(env_values);
-		sleep(1);
-	}
-
-	return 0;
 }
 
