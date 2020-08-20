@@ -51,18 +51,33 @@ def init_measurement(file_descr):
 
 def measure(file_descr):
     MEASURE_CMD = "2008".decode('hex')
+
     file_descr.write(MEASURE_CMD)
     time.sleep(0.01)
-    return file_descr.read(6)
+    raw_measurement = file_descr.read(6)
+
+    res, measurement = check_crc(raw_measurement)
+    if res == False:
+        return None
+
+    eco2_value = ord(measurement[0]) * 0x100 + ord(measurement[1])
+    etvoc_value = ord(measurement[2]) * 0x100 + ord(measurement[3])
+
+    return eco2_value, etvoc_value
 
 
 DEV_ADDR = 0x58
 IOCTL_I2C_SLAVE = 0x703
 I2C_DEV_NAME = "/dev/i2c-1"
 
-if __name__ == "__main__":
+def sgp30_init():
     file_descr = open (I2C_DEV_NAME, "r+b", 0)
     fcntl.ioctl(file_descr.fileno(), IOCTL_I2C_SLAVE, DEV_ADDR)
+
+    return file_descr
+
+if __name__ == "__main__":
+    file_descr = sgp30_init()
 
     dev_id = get_dev_id(file_descr)
     if dev_id is None:
@@ -77,8 +92,8 @@ if __name__ == "__main__":
     while True:
         time.sleep(1)
         sensor_data = measure(file_descr)
-        res, valid_data = check_crc(sensor_data)
-        if res == False:
+        if sensor_data is None:
             continue
-        print "eCO2:", int(valid_data[:2].encode('hex'), 16), "eTVOC:", int(valid_data[2:].encode('hex'), 16)
+        eco2_val, etvoc_val = sensor_data
+        print "eCO2:", eco2_val, "eTVOC:", etvoc_val
 
