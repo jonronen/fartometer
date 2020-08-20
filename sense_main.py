@@ -51,7 +51,7 @@ if __name__ == "__main__":
     etvoc_statistics = SensorStatistics()
 
     sgp30_sense.init_measurement(file_descr)
-    #sgp30_sense.set_baseline(file_descr, eco2_baseline, etvoc_baseline)
+    sgp30_sense.restore_baseline(file_descr)
 
     while True:
         time.sleep(1)
@@ -83,6 +83,6 @@ if __name__ == "__main__":
             stats_round_start = now
 
         if now - baseline_timestamp > BASELINE_INTERVAL:
-            print "Baseline:", sgp30_sense.get_baseline(file_descr)
-            baseline_timestamp = now
+            if sgp30_sense.save_baseline(file_descr):
+                baseline_timestamp = now
 

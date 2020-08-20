@@ -1,6 +1,7 @@
 import fcntl
 import time
 import sys
+import struct
 
 
 def crc8(str):
@@ -92,6 +93,42 @@ def set_baseline(file_descr, eco2_baseline, etvoc_baseline):
     file_descr.write(SET_BASELINE_CMD + raw_eco2_baseline + raw_etvoc_baseline)
 
     time.sleep(0.01)
+
+
+BASELINE_FILENAME = "sgp30_baseline.bin"
+BASELINE_STRUCT = ">HH"
+
+def save_baseline(file_descr):
+    baseline = get_baseline(file_descr)
+    if baseline is None:
+        return False
+
+    eco2_baseline, etvoc_baseline = baseline
+    baseline_bin = struct.pack(BASELINE_STRUCT, eco2_baseline, etvoc_baseline)
+    #print "Saving baseline %u,%u" % (eco2_baseline, etvoc_baseline)
+
+    baseline_file = open(BASELINE_FILENAME, "wb")
+    baseline_file.write(baseline_bin)
+    baseline_file.close()
+
+    return True
+
+def restore_baseline(file_descr):
+    try:
+        baseline_file = open(BASELINE_FILENAME, "rb")
+    except IOError:
+        return False
+
+    baseline_bin = baseline_file.read()
+    baseline_file.close()
+
+    (eco2_baseline, etvoc_baseline) = struct.unpack(BASELINE_STRUCT, baseline_bin)
+    #print "Restoring baseline to %u,%u" % (eco2_baseline, etvoc_baseline)
+
+    set_baseline(file_descr, eco2_baseline, etvoc_baseline)
+
+    return True
+
 
 
 DEV_ADDR = 0x58
