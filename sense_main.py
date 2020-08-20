@@ -5,7 +5,7 @@ import sys
 
 WARMUP_TIME = 20 * 60 # 20 minutes
 PRINT_INTERVAL = 10 * 60 # 10 minutes
-BASELINE_INTERVAL = 24 * 60 * 60 # 1 day
+BASELINE_INTERVAL = 8 * 60 * 60 # 8 hours
 
 
 class SensorStatistics:
