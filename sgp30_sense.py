@@ -65,6 +65,34 @@ def measure(file_descr):
 
     return eco2_value, etvoc_value
 
+def get_baseline(file_descr):
+    GET_BASELINE_CMD = "2015".decode('hex')
+
+    file_descr.write(GET_BASELINE_CMD)
+    time.sleep(0.01)
+    raw_baseline = file_descr.read(6)
+
+    res, baselines = check_crc(raw_baseline)
+    if res == False:
+        return None
+
+    eco2_baseline = ord(baselines[0]) * 0x100 + ord(baselines[1])
+    etvoc_baseline = ord(baselines[2]) * 0x100 + ord(baselines[3])
+
+    return eco2_baseline, etvoc_baseline
+
+def set_baseline(file_descr, eco2_baseline, etvoc_baseline):
+    SET_BASELINE_CMD = "201e".decode('hex')
+
+    raw_eco2_baseline = chr((eco2_baseline / 0x100) & 0xff) + chr(eco2_baseline & 0xff)
+    raw_eco2_baseline += chr(crc8(raw_eco2_baseline))
+    raw_etvoc_baseline = chr((etvoc_baseline / 0x100) & 0xff) + chr(etvoc_baseline & 0xff)
+    raw_etvoc_baseline += chr(crc8(raw_etvoc_baseline))
+
+    file_descr.write(SET_BASELINE_CMD + raw_eco2_baseline + raw_etvoc_baseline)
+
+    time.sleep(0.01)
+
 
 DEV_ADDR = 0x58
 IOCTL_I2C_SLAVE = 0x703
