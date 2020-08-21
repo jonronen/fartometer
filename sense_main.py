@@ -4,6 +4,7 @@ import sys
 import awscrt
 import awsiot
 import argparse
+import json
 
 
 WARMUP_TIME = 20 * 60 # 20 minutes
@@ -135,12 +136,12 @@ if __name__ == "__main__":
             json_obj["etvoc_max"] = etvoc_stats["max"]
             json_obj["etvoc"] = etvoc_stats["avg"]
 
-            print "Sending", str(json_obj)
+            print "Sending", json.dumps(json_obj)
 
             if not args.dry_run:
                 mqtt_future, packet_id = mqtt_conn.publish(
                     topic="sensor_report",
-                    payload=str(json_obj),
+                    payload=json.dumps(json_obj),
                     qos=awscrt.mqtt.QoS.AT_LEAST_ONCE)
                 mqtt_future.result()
 
