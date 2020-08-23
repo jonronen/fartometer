@@ -27,6 +27,10 @@ Setup instructions:
   * cmake --build . --target install
 * cd back to /home/pi/sdk-cpp-workspace/ and clone the sensor-specific code
   * git clone https://github.com/jonronen/fartometer.git
+* add the service file:
+  * sudo cp fartometer.service /lib/systemd/system/
+  * sudo systemctl daemon-reload
+  * sudo systemctl enable fartometer.service
 
 Build everything together:
 g++ -I ../include/ -L ../lib/ -laws-crt-cpp -laws-c-mqtt -laws-c-auth -laws-c-io -laws-c-http -laws-c-compression -laws-c-common -laws-c-cal -ls2n -Wall -Wno-long-long -pedantic -Werror main.cpp ccs811_sense.cpp

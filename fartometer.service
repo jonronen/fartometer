@@ -1,0 +1,16 @@
+[Unit]
+Description=Fartometer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=idle
+User=pi
+Group=pi
+ExecStart=/home/pi/sdk-cpp-workspace/fartometer/run-fartometer.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
