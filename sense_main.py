@@ -47,6 +47,16 @@ class SensorStatistics:
         return {"min": self.min, "max": self.max, "avg": self.aggr / self.samples}
 
 
+# Callback when connection is accidentally lost.
+def on_connection_interrupted(connection, error, **kwargs):
+    print("Connection interrupted. error: {}".format(error))
+
+
+# Callback when an interrupted connection is re-established.
+def on_connection_resumed(connection, return_code, session_present, **kwargs):
+    print("Connection resumed. return_code: {} session_present: {}".format(return_code, session_present))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Send sensor reports through MQTT")
     parser.add_argument('--endpoint', required=True, help="Your AWS IoT custom endpoint, not including a port. " +
@@ -71,7 +81,11 @@ if __name__ == "__main__":
         pri_key_filepath=args.key,
         ca_filepath=args.root_ca,
         client_id=args.client_id,
-        client_bootstrap=client_bootstrap)
+        client_bootstrap=client_bootstrap,
+        clean_session=False,
+        keep_alive_secs=6,
+        on_connection_interrupted=on_connection_interrupted,
+        on_connection_resumed=on_connection_resumed)
 
     connect_future = mqtt_conn.connect()
     connect_future.result()
@@ -139,11 +153,14 @@ if __name__ == "__main__":
             print "Sending", json.dumps(json_obj)
 
             if not args.dry_run:
-                mqtt_future, packet_id = mqtt_conn.publish(
-                    topic="sensor_report",
-                    payload=json.dumps(json_obj),
-                    qos=awscrt.mqtt.QoS.AT_LEAST_ONCE)
-                mqtt_future.result()
+                try:
+                    mqtt_future, packet_id = mqtt_conn.publish(
+                        topic="sensor_report",
+                        payload=json.dumps(json_obj),
+                        qos=awscrt.mqtt.QoS.AT_MOST_ONCE)
+                    mqtt_future.result()
+                except AwsCrtError:
+                    pass
 
         if now - baseline_timestamp > BASELINE_INTERVAL:
             if sgp30_sense.save_baseline(file_descr):
