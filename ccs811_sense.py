@@ -16,6 +16,13 @@ class Ccs811Sense:
         self.file_descr = open (self.I2C_DEV_NAME, "r+b", 0)
         fcntl.ioctl(self.file_descr.fileno(), self.IOCTL_I2C_SLAVE, self.DEV_ADDR)
 
+    def get_name(self):
+        return "ccs811"
+
+    def get_dev_id(self):
+        # This sensor doesn't have a device ID
+        return None
+
     def read_byte(self, byte_cmd):
         self.file_descr.write(chr(byte_cmd))
         time.sleep(0.01)
