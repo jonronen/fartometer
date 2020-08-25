@@ -61,13 +61,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Send sensor reports through MQTT")
     parser.add_argument('--endpoint', required=True, help="Your AWS IoT custom endpoint, not including a port. " +
                                                           "Ex: \"abcd123456wxyz-ats.iot.us-east-1.amazonaws.com\"")
-    parser.add_argument('--cert', required=True, help="File path to your client certificate, in PEM format.")
-    parser.add_argument('--key', required=True, help="File path to your private key, in PEM format.")
+    parser.add_argument('--cert', required=True, help="File path to your client certificate, in PEM format")
+    parser.add_argument('--key', required=True, help="File path to your private key, in PEM format")
     parser.add_argument('--root-ca', required=True, help="File path to root certificate authority, in PEM format. " +
                                           "Necessary if MQTT server uses a certificate that's not already in " +
-                                          "your trust store.")
-    parser.add_argument('--client-id', required=True, help="Client ID for MQTT connection.")
-    parser.add_argument('--dry-run', action="store_true", help="Client ID for MQTT connection.")
+                                          "your trust store")
+    parser.add_argument('--client-id', required=True, help="Client ID for MQTT connection")
+
+    parser.add_argument('--dry-run', action="store_true", help="Do not send data, just print it")
 
     args = parser.parse_args()
 
