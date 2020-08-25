@@ -31,120 +31,118 @@ def check_crc(triplet_string):
     return True, return_str
 
 
-def get_dev_id(file_descr):
+class Sgp30Sense:
+    DEV_ADDR = 0x58
+    IOCTL_I2C_SLAVE = 0x703
+    I2C_DEV_NAME = "/dev/i2c-1"
+
     GET_DEV_ID_CMD = "3682".decode('hex')
-
-    attempts = 3
-    while attempts > 0:
-        file_descr.write(GET_DEV_ID_CMD)
-        time.sleep(0.01)
-        dev_id = file_descr.read(9)
-        res, ret_dev_id = check_crc(dev_id)
-        if res == True:
-            return ret_dev_id
-        attempts += 1
-
-    return None
-
-def init_measurement(file_descr):
     INIT_MEASUREMENT_CMD = "2003".decode('hex')
-    file_descr.write(INIT_MEASUREMENT_CMD)
-
-def measure(file_descr):
     MEASURE_CMD = "2008".decode('hex')
-
-    file_descr.write(MEASURE_CMD)
-    time.sleep(0.01)
-    raw_measurement = file_descr.read(6)
-
-    res, measurement = check_crc(raw_measurement)
-    if res == False:
-        return None
-
-    eco2_value = ord(measurement[0]) * 0x100 + ord(measurement[1])
-    etvoc_value = ord(measurement[2]) * 0x100 + ord(measurement[3])
-
-    return eco2_value, etvoc_value
-
-def get_baseline(file_descr):
     GET_BASELINE_CMD = "2015".decode('hex')
-
-    file_descr.write(GET_BASELINE_CMD)
-    time.sleep(0.01)
-    raw_baseline = file_descr.read(6)
-
-    res, baselines = check_crc(raw_baseline)
-    if res == False:
-        return None
-
-    eco2_baseline = ord(baselines[0]) * 0x100 + ord(baselines[1])
-    etvoc_baseline = ord(baselines[2]) * 0x100 + ord(baselines[3])
-
-    return eco2_baseline, etvoc_baseline
-
-def set_baseline(file_descr, eco2_baseline, etvoc_baseline):
     SET_BASELINE_CMD = "201e".decode('hex')
 
-    raw_eco2_baseline = chr((eco2_baseline / 0x100) & 0xff) + chr(eco2_baseline & 0xff)
-    raw_eco2_baseline += chr(crc8(raw_eco2_baseline))
-    raw_etvoc_baseline = chr((etvoc_baseline / 0x100) & 0xff) + chr(etvoc_baseline & 0xff)
-    raw_etvoc_baseline += chr(crc8(raw_etvoc_baseline))
+    BASELINE_FILENAME = "sgp30_baseline.bin"
+    BASELINE_STRUCT = ">HH"
 
-    file_descr.write(SET_BASELINE_CMD + raw_eco2_baseline + raw_etvoc_baseline)
+    def __init__(self):
+        self.file_descr = open (self.I2C_DEV_NAME, "r+b", 0)
+        fcntl.ioctl(self.file_descr.fileno(), self.IOCTL_I2C_SLAVE, self.DEV_ADDR)
 
-    time.sleep(0.01)
+    def get_name(self):
+        return "sgp30"
 
+    def get_dev_id(self):
+        attempts = 3
 
-BASELINE_FILENAME = "sgp30_baseline.bin"
-BASELINE_STRUCT = ">HH"
+        while attempts > 0:
+            self.file_descr.write(self.GET_DEV_ID_CMD)
+            time.sleep(0.01)
+            dev_id = self.file_descr.read(9)
+            res, ret_dev_id = check_crc(dev_id)
+            if res == True:
+                return ret_dev_id
+            attempts += 1
 
-def save_baseline(file_descr):
-    baseline = get_baseline(file_descr)
-    if baseline is None:
-        return False
+        return None
 
-    eco2_baseline, etvoc_baseline = baseline
-    baseline_bin = struct.pack(BASELINE_STRUCT, eco2_baseline, etvoc_baseline)
-    #print "Saving baseline %u,%u" % (eco2_baseline, etvoc_baseline)
+    def init_measurement(self):
+        self.file_descr.write(self.INIT_MEASUREMENT_CMD)
 
-    baseline_file = open(BASELINE_FILENAME, "wb")
-    baseline_file.write(baseline_bin)
-    baseline_file.close()
+    def measure(self):
+        self.file_descr.write(self.MEASURE_CMD)
+        time.sleep(0.01)
+        raw_measurement = self.file_descr.read(6)
 
-    return True
+        res, measurement = check_crc(raw_measurement)
+        if res == False:
+            return None
 
-def restore_baseline(file_descr):
-    try:
-        baseline_file = open(BASELINE_FILENAME, "rb")
-    except IOError:
-        return False
+        eco2_value = ord(measurement[0]) * 0x100 + ord(measurement[1])
+        etvoc_value = ord(measurement[2]) * 0x100 + ord(measurement[3])
 
-    baseline_bin = baseline_file.read()
-    baseline_file.close()
+        return eco2_value, etvoc_value
 
-    (eco2_baseline, etvoc_baseline) = struct.unpack(BASELINE_STRUCT, baseline_bin)
-    #print "Restoring baseline to %u,%u" % (eco2_baseline, etvoc_baseline)
+    def get_baseline(self):
+        self.file_descr.write(self.GET_BASELINE_CMD)
+        time.sleep(0.01)
+        raw_baseline = self.file_descr.read(6)
 
-    set_baseline(file_descr, eco2_baseline, etvoc_baseline)
+        res, baselines = check_crc(raw_baseline)
+        if res == False:
+            return None
 
-    return True
+        eco2_baseline = ord(baselines[0]) * 0x100 + ord(baselines[1])
+        etvoc_baseline = ord(baselines[2]) * 0x100 + ord(baselines[3])
 
+        return eco2_baseline, etvoc_baseline
 
+    def set_baseline(self, eco2_baseline, etvoc_baseline):
+        raw_eco2_baseline = chr((eco2_baseline / 0x100) & 0xff) + chr(eco2_baseline & 0xff)
+        raw_eco2_baseline += chr(crc8(raw_eco2_baseline))
+        raw_etvoc_baseline = chr((etvoc_baseline / 0x100) & 0xff) + chr(etvoc_baseline & 0xff)
+        raw_etvoc_baseline += chr(crc8(raw_etvoc_baseline))
 
-DEV_ADDR = 0x58
-IOCTL_I2C_SLAVE = 0x703
-I2C_DEV_NAME = "/dev/i2c-1"
+        self.file_descr.write(self.SET_BASELINE_CMD + raw_eco2_baseline + raw_etvoc_baseline)
 
-def sgp30_init():
-    file_descr = open (I2C_DEV_NAME, "r+b", 0)
-    fcntl.ioctl(file_descr.fileno(), IOCTL_I2C_SLAVE, DEV_ADDR)
+        time.sleep(0.01)
 
-    return file_descr
+    def save_baseline(self):
+        baseline = self.get_baseline()
+        if baseline is None:
+            return False
+
+        eco2_baseline, etvoc_baseline = baseline
+        baseline_bin = struct.pack(self.BASELINE_STRUCT, eco2_baseline, etvoc_baseline)
+        #print "Saving baseline %u,%u" % (eco2_baseline, etvoc_baseline)
+
+        baseline_file = open(self.BASELINE_FILENAME, "wb")
+        baseline_file.write(baseline_bin)
+        baseline_file.close()
+
+        return True
+
+    def restore_baseline(self):
+        try:
+            baseline_file = open(self.BASELINE_FILENAME, "rb")
+        except IOError:
+            return False
+
+        baseline_bin = baseline_file.read()
+        baseline_file.close()
+
+        (eco2_baseline, etvoc_baseline) = struct.unpack(self.BASELINE_STRUCT, baseline_bin)
+        #print "Restoring baseline to %u,%u" % (eco2_baseline, etvoc_baseline)
+
+        self.set_baseline(eco2_baseline, etvoc_baseline)
+
+        return True
+
 
 if __name__ == "__main__":
-    file_descr = sgp30_init()
+    sgp30_obj = Sgp30Sense()
 
-    dev_id = get_dev_id(file_descr)
+    dev_id = sgp30_obj.get_dev_id()
     if dev_id is None:
         print "Error getting dev ID"
         sys.exit()
@@ -152,11 +150,11 @@ if __name__ == "__main__":
     print "Device ID:", dev_id.encode('hex')
 
     print "Initializing..."
-    init_measurement(file_descr)
+    sgp30_obj.init_measurement()
 
     while True:
         time.sleep(1)
-        sensor_data = measure(file_descr)
+        sensor_data = sgp30_obj.measure()
         if sensor_data is None:
             continue
         eco2_val, etvoc_val = sensor_data
