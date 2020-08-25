@@ -85,7 +85,7 @@ class Ccs811Sense:
 
         return eco2_value, etvoc_value
 
-    def save_baseline():
+    def save_baseline(self):
         self.file_descr.write(chr(self.BASELINE_CMD))
         time.sleep(0.01)
         baseline = self.file_descr.read(2)
@@ -96,9 +96,9 @@ class Ccs811Sense:
 
         return True
 
-    def restore_baseline():
+    def restore_baseline(self):
         try:
-            baseline_file = open(BASELINE_FILENAME, "rb")
+            baseline_file = open(self.BASELINE_FILENAME, "rb")
         except IOError:
             return False
 
@@ -108,7 +108,7 @@ class Ccs811Sense:
         if len(baseline_bin) < 2:
             return False
 
-        self.file_descr.write(chr(BASELINE_CMD) + baseline_bin)
+        self.file_descr.write(chr(self.BASELINE_CMD) + baseline_bin)
         time.sleep(0.01)
 
         return True
