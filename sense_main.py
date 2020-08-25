@@ -1,4 +1,5 @@
 import sgp30_sense
+import ccs811_sense
 import time
 import sys
 import awscrt
@@ -56,6 +57,10 @@ def on_connection_interrupted(connection, error, **kwargs):
 def on_connection_resumed(connection, return_code, session_present, **kwargs):
     print("Connection resumed. return_code: {} session_present: {}".format(return_code, session_present))
 
+sensor_modules = {
+    "sgp30": sgp30_sense.Sgp30Sense,
+    "ccs811": ccs811_sense.Ccs811Sense,
+}
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Send sensor reports through MQTT")
@@ -69,8 +74,16 @@ if __name__ == "__main__":
     parser.add_argument('--client-id', required=True, help="Client ID for MQTT connection")
 
     parser.add_argument('--dry-run', action="store_true", help="Do not send data, just print it")
+    parser.add_argument('--sensor', required=True, help="Type of sensor (e.g. sgp30)")
 
     args = parser.parse_args()
+
+    if args.sensor not in sensor_modules.keys():
+        print "Unsupported sensor", args.sensor
+        print "Supported sensors:", sensor_modules.keys()
+        sys.exit()
+
+    sensor_obj = sensor_modules[args.sensor]()
 
     event_loop_group = awscrt.io.EventLoopGroup(1)
     host_resolver = awscrt.io.DefaultHostResolver(event_loop_group)
@@ -91,12 +104,10 @@ if __name__ == "__main__":
     connect_future = mqtt_conn.connect()
     connect_future.result()
 
-    file_descr = sgp30_sense.sgp30_init()
-    dev_id = sgp30_sense.get_dev_id(file_descr)
-    if dev_id is None:
-        print "Error getting device ID"
-        sys.exit()
-    print "Device ID:", dev_id.encode('hex')
+    dev_id = sensor_obj.get_dev_id()
+    if dev_id is not None:
+        dev_id = dev_id.encode('hex')
+        print "Device ID:", dev_id
 
     time_start = time.time()
     baseline_timestamp = time_start
@@ -110,12 +121,12 @@ if __name__ == "__main__":
     eco2_statistics = SensorStatistics()
     etvoc_statistics = SensorStatistics()
 
-    sgp30_sense.init_measurement(file_descr)
-    sgp30_sense.restore_baseline(file_descr)
+    sensor_obj.init_measurement()
+    sensor_obj.restore_baseline()
 
     while True:
         time.sleep(1)
-        meas_data = sgp30_sense.measure(file_descr)
+        meas_data = sensor_obj.measure()
         if meas_data is None:
             continue
         eco2_val, etvoc_val = meas_data
@@ -132,7 +143,7 @@ if __name__ == "__main__":
             etvoc_statistics.process(etvoc_val)
 
         if now - stats_round_start > PRINT_INTERVAL:
-            json_obj = {"sensor": "sgp30", "location": location}
+            json_obj = {"sensor": sensor_obj.get_name(), "location": location}
 
             eco2_stats = eco2_statistics.get_statistics()
             eco2_statistics.reset()
@@ -164,6 +175,6 @@ if __name__ == "__main__":
                     pass
 
         if now - baseline_timestamp > BASELINE_INTERVAL:
-            if sgp30_sense.save_baseline(file_descr):
+            if sensor_obj.save_baseline():
                 baseline_timestamp = now
 
