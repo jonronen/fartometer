@@ -155,6 +155,9 @@ if __name__ == "__main__":
             if eco2_stats is None or etvoc_stats is None:
                 continue
 
+            if dev_id is not None:
+                json_obj["device_id"] = dev_id
+
             json_obj["eco2_min"] = eco2_stats["min"]
             json_obj["eco2_max"] = eco2_stats["max"]
             json_obj["eco2"] = eco2_stats["avg"]
