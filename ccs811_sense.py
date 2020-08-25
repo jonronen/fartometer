@@ -4,126 +4,125 @@ import sys
 import struct
 
 
-def read_byte(file_descr, byte_cmd):
-    file_descr.write(chr(byte_cmd))
-    time.sleep(0.01)
-    return ord(file_descr.read(1))
+class Ccs811Sense:
+    DEV_ADDR = 0x5a
+    IOCTL_I2C_SLAVE = 0x703
+    I2C_DEV_NAME = "/dev/i2c-1"
 
-def get_status(file_descr):
-    STATUS_CMD = 0
-    return read_byte(file_descr, STATUS_CMD)
+    BASELINE_FILENAME = "ccs811_baseline.bin"
+    BASELINE_CMD = 0x11
 
-def get_measurement_mode(file_descr):
-    MODE_CMD = 1
-    return (read_byte(file_descr, MODE_CMD) & 0x70) >> 4
+    def __init__(self):
+        self.file_descr = open (self.I2C_DEV_NAME, "r+b", 0)
+        fcntl.ioctl(self.file_descr.fileno(), self.IOCTL_I2C_SLAVE, self.DEV_ADDR)
 
-def get_app_ver(file_descr):
-    APP_VER_CMD = 0x24
-    file_descr.write(chr(APP_VER_CMD))
-    app_ver = file_descr.read(2)
-    return int(app_ver.encode('hex'), 16)
+    def read_byte(self, byte_cmd):
+        self.file_descr.write(chr(byte_cmd))
+        time.sleep(0.01)
+        return ord(self.file_descr.read(1))
 
-def device_reset(file_descr):
-    RESET_CMD = "ff11e5728a".decode('hex')
+    def get_status(self):
+        STATUS_CMD = 0
+        return self.read_byte(STATUS_CMD)
 
-    print "Resetting device..."
+    def get_measurement_mode(self):
+        MODE_CMD = 1
+        return (self.read_byte(MODE_CMD) & 0x70) >> 4
 
-    file_descr.write("ff11e5728a".decode('hex'))
-    time.sleep(0.01)
+    def get_app_ver(self):
+        APP_VER_CMD = 0x24
+        self.file_descr.write(chr(APP_VER_CMD))
+        app_ver = self.file_descr.read(2)
+        return int(app_ver.encode('hex'), 16)
 
-    HW_ID_CMD = 0x20
-    hw_id = read_byte(file_descr, HW_ID_CMD)
-    if (hw_id != 0x81):
-        print "Wrong HW ID 0x%02x" % hw_id
-        return
+    def device_reset(self):
+        RESET_CMD = "ff11e5728a".decode('hex')
 
-    file_descr.write(chr(0xf4))
-    time.sleep(0.01)
+        print "Resetting device..."
 
-def init_measurement(file_descr):
-    MEASUREMENT_MODE = 1
-
-    while (get_status(file_descr) & 0x80) == 0:
-        print "Starting CCS811 application..."
-        APP_START_CMD = 0xF4
-        file_descr.write(chr(APP_START_CMD))
+        self.file_descr.write("ff11e5728a".decode('hex'))
         time.sleep(0.01)
 
-    while get_measurement_mode(file_descr) != MEASUREMENT_MODE:
-        print "Setting mode to", MEASUREMENT_MODE
-        SET_MODE_CMD = "0110".decode('hex')
-        file_descr.write(SET_MODE_CMD)
+        HW_ID_CMD = 0x20
+        hw_id = read_byte(HW_ID_CMD)
+        if (hw_id != 0x81):
+            print "Wrong HW ID 0x%02x" % hw_id
+            return
 
-    print "App version:", hex(get_app_ver(file_descr))
+        self.file_descr.write(chr(0xf4))
+        time.sleep(0.01)
 
+    def init_measurement(self):
+        MEASUREMENT_MODE = 1
 
-def measure(file_descr):
-    MEASURE_CMD = 2
+        while (self.get_status() & 0x80) == 0:
+            print "Starting CCS811 application..."
+            APP_START_CMD = 0xF4
+            self.file_descr.write(chr(APP_START_CMD))
+            time.sleep(0.01)
 
-    file_descr.write(chr(MEASURE_CMD))
-    time.sleep(0.01)
-    measurement = file_descr.read(8)
+        while self.get_measurement_mode() != MEASUREMENT_MODE:
+            print "Setting mode to", MEASUREMENT_MODE
+            SET_MODE_CMD = "0110".decode('hex')
+            self.file_descr.write(SET_MODE_CMD)
 
-    eco2_value = ord(measurement[0]) * 0x100 + ord(measurement[1])
-    etvoc_value = ord(measurement[2]) * 0x100 + ord(measurement[3])
-    err = ord(measurement[5])
-    if err & 1:
-        print "Error in taking measurement:", ord(measurement[4])
-        return None
-
-    return eco2_value, etvoc_value
-
-BASELINE_FILENAME = "ccs811_baseline.bin"
-BASELINE_CMD = 0x11
-
-def save_baseline(file_descr):
-    file_descr.write(chr(BASELINE_CMD))
-    time.sleep(0.01)
-    baseline = file_descr.read(2)
-
-    baseline_file = open(BASELINE_FILENAME, "wb")
-    baseline_file.write(baseline)
-    baseline_file.close()
-
-    return True
-
-def restore_baseline(file_descr):
-    try:
-        baseline_file = open(BASELINE_FILENAME, "rb")
-    except IOError:
-        return False
-
-    baseline_bin = baseline_file.read(2)
-    baseline_file.close()
-
-    if len(baseline_bin) < 2:
-        return False
-
-    file_descr.write(chr(BASELINE_CMD) + baseline_bin)
-    time.sleep(0.01)
-
-    return True
+        print "App version:", hex(self.get_app_ver())
 
 
-DEV_ADDR = 0x5a
-IOCTL_I2C_SLAVE = 0x703
-I2C_DEV_NAME = "/dev/i2c-1"
+    def measure(self):
+        MEASURE_CMD = 2
 
-def ccs811_init():
-    file_descr = open (I2C_DEV_NAME, "r+b", 0)
-    fcntl.ioctl(file_descr.fileno(), IOCTL_I2C_SLAVE, DEV_ADDR)
+        self.file_descr.write(chr(MEASURE_CMD))
+        time.sleep(0.01)
+        measurement = self.file_descr.read(8)
 
-    return file_descr
+        eco2_value = ord(measurement[0]) * 0x100 + ord(measurement[1])
+        etvoc_value = ord(measurement[2]) * 0x100 + ord(measurement[3])
+        err = ord(measurement[5])
+        if err & 1:
+            print "Error in taking measurement:", ord(measurement[4])
+            return None
+
+        return eco2_value, etvoc_value
+
+    def save_baseline():
+        self.file_descr.write(chr(self.BASELINE_CMD))
+        time.sleep(0.01)
+        baseline = self.file_descr.read(2)
+
+        baseline_file = open(self.BASELINE_FILENAME, "wb")
+        baseline_file.write(baseline)
+        baseline_file.close()
+
+        return True
+
+    def restore_baseline():
+        try:
+            baseline_file = open(BASELINE_FILENAME, "rb")
+        except IOError:
+            return False
+
+        baseline_bin = baseline_file.read(2)
+        baseline_file.close()
+
+        if len(baseline_bin) < 2:
+            return False
+
+        self.file_descr.write(chr(BASELINE_CMD) + baseline_bin)
+        time.sleep(0.01)
+
+        return True
+
 
 if __name__ == "__main__":
-    file_descr = ccs811_init()
+    ccs811_obj = Ccs811Sense()
 
     print "Initializing..."
-    init_measurement(file_descr)
+    ccs811_obj.init_measurement()
 
     while True:
         time.sleep(1)
-        sensor_data = measure(file_descr)
+        sensor_data = ccs811_obj.measure()
         if sensor_data is None:
             continue
         eco2_val, etvoc_val = sensor_data
